@@ -96,11 +96,14 @@ function App() {
   const [inCall, setInCall] = useState(false);
   const [callWith, setCallWith] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
+  const callTimerRef = useRef(null);
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -187,6 +190,7 @@ function App() {
       socket.emit('call-offer', { to: userId, offer });
       setInCall(true);
       setCallWith(userId);
+      startCallTimer();
     } catch (err) {
       console.error('Error starting call:', err);
       alert('Could not access microphone. Please allow microphone access.');
@@ -227,6 +231,7 @@ function App() {
       setInCall(true);
       setCallWith(incomingCall.from);
       setIncomingCall(null);
+      startCallTimer();
     } catch (err) {
       console.error('Error answering call:', err);
       alert('Could not access microphone. Please allow microphone access.');
@@ -238,6 +243,29 @@ function App() {
       socket.emit('call-ended', { to: incomingCall.from });
       setIncomingCall(null);
     }
+  };
+
+  const toggleMute = () => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+      }
+    }
+  };
+
+  const startCallTimer = () => {
+    setCallDuration(0);
+    callTimerRef.current = setInterval(() => {
+      setCallDuration(prev => prev + 1);
+    }, 1000);
+  };
+
+  const formatCallDuration = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const endCall = () => {
@@ -255,8 +283,15 @@ function App() {
       localStreamRef.current = null;
     }
 
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
+    }
+
     setInCall(false);
     setCallWith(null);
+    setIsMuted(false);
+    setCallDuration(0);
   };
 
   const enterChat = () => {
@@ -276,7 +311,7 @@ function App() {
     // If hosting the server, use your local IP (e.g., '192.168.1.105')
     // If testing locally, keep 'localhost'
     // Find your IP: Windows (ipconfig), Mac/Linux (ifconfig)
-    const SERVER_IP = '172.25.96.1';
+    const SERVER_IP = '10.0.7.90';
     const serverUrl = `http://${SERVER_IP}:3000`;
     const newSocket = io(serverUrl);
 
@@ -543,6 +578,44 @@ function App() {
 
           {/* Hidden audio element for remote stream */}
           <audio ref={remoteAudioRef} autoPlay />
+
+          {/* Mobile Phone Call Interface */}
+          {inCall && (
+            <div className="phone-call-interface">
+              <div className="phone-screen">
+                <div className="phone-header">
+                  <div className="call-status">Voice Call</div>
+                  <div className="call-timer">{formatCallDuration(callDuration)}</div>
+                </div>
+
+                <div className="caller-info">
+                  <div className="caller-avatar">
+                    {users.find(u => u.id === callWith)?.avatar?.initial || '?'}
+                  </div>
+                  <div className="caller-name">
+                    {users.find(u => u.id === callWith)?.name || 'Unknown'}
+                  </div>
+                  <div className="call-state">
+                    {isMuted ? '🔇 Muted' : '🔊 Unmuted'}
+                  </div>
+                </div>
+
+                <div className="phone-controls">
+                  <button
+                    className={`phone-button mute-button ${isMuted ? 'active' : ''}`}
+                    onClick={toggleMute}
+                  >
+                    <span className="button-icon">{isMuted ? '🔇' : '🎤'}</span>
+                    <span className="button-label">{isMuted ? 'Unmute' : 'Mute'}</span>
+                  </button>
+                  <button className="phone-button end-call-button" onClick={endCall}>
+                    <span className="button-icon">📞</span>
+                    <span className="button-label">End Call</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="messages-container">
             {selectedChat === 'community' ? (
