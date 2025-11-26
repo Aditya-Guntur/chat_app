@@ -276,7 +276,7 @@ function App() {
     // If hosting the server, use your local IP (e.g., '192.168.1.105')
     // If testing locally, keep 'localhost'
     // Find your IP: Windows (ipconfig), Mac/Linux (ifconfig)
-    const SERVER_IP = 'localhost';
+    const SERVER_IP = '172.25.96.1';
     const serverUrl = `http://${SERVER_IP}:3000`;
     const newSocket = io(serverUrl);
 
