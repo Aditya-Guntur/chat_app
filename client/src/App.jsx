@@ -98,12 +98,16 @@ function App() {
   const [incomingCall, setIncomingCall] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [audioLevels, setAudioLevels] = useState([0, 0, 0, 0, 0]);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const callTimerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -165,6 +169,26 @@ function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
 
+      // Setup audio visualization
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = audioContext;
+      const analyser = audioContext.createAnalyser();
+      analyserRef.current = analyser;
+      analyser.fftSize = 32;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const updateAudioLevels = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const levels = Array.from(dataArray.slice(0, 5)).map(val => val / 255);
+        setAudioLevels(levels);
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
+      };
+      updateAudioLevels();
+
       const peerConnection = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       });
@@ -203,6 +227,26 @@ function App() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
+
+      // Setup audio visualization
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = audioContext;
+      const analyser = audioContext.createAnalyser();
+      analyserRef.current = analyser;
+      analyser.fftSize = 32;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const updateAudioLevels = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const levels = Array.from(dataArray.slice(0, 5)).map(val => val / 255);
+        setAudioLevels(levels);
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
+      };
+      updateAudioLevels();
 
       const peerConnection = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -288,6 +332,20 @@ function App() {
       callTimerRef.current = null;
     }
 
+    // Cleanup audio visualization
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    analyserRef.current = null;
+    setAudioLevels([0, 0, 0, 0, 0]);
+
     setInCall(false);
     setCallWith(null);
     setIsMuted(false);
@@ -311,7 +369,7 @@ function App() {
     // If hosting the server, use your local IP (e.g., '192.168.1.105')
     // If testing locally, keep 'localhost'
     // Find your IP: Windows (ipconfig), Mac/Linux (ifconfig)
-    const SERVER_IP = '10.0.7.90';
+    const SERVER_IP = '10.0.7.90'
     const serverUrl = `http://${SERVER_IP}:3000`;
     const newSocket = io(serverUrl);
 
@@ -597,6 +655,20 @@ function App() {
                   </div>
                   <div className="call-state">
                     {isMuted ? '🔇 Muted' : '🔊 Unmuted'}
+                  </div>
+
+                  {/* Audio Visualizer */}
+                  <div className="audio-visualizer">
+                    {audioLevels.map((level, idx) => (
+                      <div
+                        key={idx}
+                        className="audio-bar"
+                        style={{
+                          height: `${Math.max(10, level * 100)}px`,
+                          transition: 'height 0.1s ease'
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
 
