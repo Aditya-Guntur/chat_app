@@ -164,28 +164,48 @@ function App() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
+      console.log('Got local stream, tracks:', stream.getTracks());
 
       const peerConnection = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
       });
       peerConnectionRef.current = peerConnection;
 
-      stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+      // Add connection state logging
+      peerConnection.onconnectionstatechange = () => {
+        console.log('Connection state:', peerConnection.connectionState);
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', peerConnection.iceConnectionState);
+      };
+
+      stream.getTracks().forEach(track => {
+        console.log('Adding track:', track.kind, track.enabled);
+        peerConnection.addTrack(track, stream);
+      });
 
       peerConnection.ontrack = (event) => {
+        console.log('Received remote track:', event.streams[0]);
         if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = event.streams[0];
+          remoteAudioRef.current.play().catch(e => console.error('Error playing audio:', e));
         }
       };
 
       peerConnection.onicecandidate = (event) => {
         if (event.candidate && socket) {
+          console.log('Sending ICE candidate');
           socket.emit('ice-candidate', { to: userId, candidate: event.candidate });
         }
       };
 
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
+      console.log('Created offer');
 
       socket.emit('call-offer', { to: userId, offer });
       setInCall(true);
@@ -203,22 +223,41 @@ function App() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
+      console.log('Got local stream, tracks:', stream.getTracks());
 
       const peerConnection = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
       });
       peerConnectionRef.current = peerConnection;
 
-      stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+      // Add connection state logging
+      peerConnection.onconnectionstatechange = () => {
+        console.log('Connection state:', peerConnection.connectionState);
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', peerConnection.iceConnectionState);
+      };
+
+      stream.getTracks().forEach(track => {
+        console.log('Adding track:', track.kind, track.enabled);
+        peerConnection.addTrack(track, stream);
+      });
 
       peerConnection.ontrack = (event) => {
+        console.log('Received remote track:', event.streams[0]);
         if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = event.streams[0];
+          remoteAudioRef.current.play().catch(e => console.error('Error playing audio:', e));
         }
       };
 
       peerConnection.onicecandidate = (event) => {
         if (event.candidate && socket) {
+          console.log('Sending ICE candidate');
           socket.emit('ice-candidate', { to: incomingCall.from, candidate: event.candidate });
         }
       };
@@ -226,6 +265,7 @@ function App() {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
+      console.log('Created answer');
 
       socket.emit('call-answer', { to: incomingCall.from, answer });
       setInCall(true);
